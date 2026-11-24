@@ -1,14 +1,23 @@
-import { useState } from 'react';
-import { motion } from 'framer-motion';
+import { useState, useRef, useEffect, useCallback } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useFuzzyController } from './hooks/useFuzzyController';
-import { presets } from './data/presets';
+import { presets, STEP_INFO } from './data/presets';
 import MembershipChart from './components/MembershipChart';
 import OutputSurface from './components/OutputSurface';
 
 /* ═══════════════════════════════════════════════════════════
    Sugeno FLC Studio — Light Theme Dashboard
-   Clean, well-spaced, educational layout
+   Clean, well-spaced, educational layout + Guided Walkthrough
    ═══════════════════════════════════════════════════════════ */
+
+const GUIDE_STEPS = [
+  { key: 'setup',     label: 'Setup',       section: 0, desc: 'Choose a problem preset and see the system configuration.' },
+  { key: 'surface',   label: 'Surface',     section: 1, desc: 'The 3D response surface shows the output for every possible input combination.' },
+  { key: 'fuzzify',   label: 'Fuzzify',     section: 2, desc: 'Each crisp input is mapped to fuzzy membership degrees via triangular/trapezoidal functions.' },
+  { key: 'rules',     label: 'Rules',       section: 3, desc: 'Fuzzy rules are evaluated — each rule\'s firing strength = min of its antecedent degrees.' },
+  { key: 'result',    label: 'Result',       section: 4, desc: 'The final output z* = Σ(wᵢ·zᵢ) / Σ(wᵢ) — a weighted average of active rule outputs.' },
+  { key: 'theory',    label: 'Theory',       section: 5, desc: 'Key theoretical foundations of the Takagi-Sugeno fuzzy inference system.' },
+];
 
 export default function App() {
   const {
@@ -18,35 +27,105 @@ export default function App() {
 
   const [showCalc, setShowCalc] = useState(false);
 
+  // Guided walkthrough state
+  const [guideStep, setGuideStep] = useState(-1); // -1 = off
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [speed, setSpeed] = useState(3000);
+  const timerRef = useRef(null);
+
+  // Section refs for scrolling
+  const sectionRefs = useRef([]);
+  const setSectionRef = (idx) => (el) => { sectionRefs.current[idx] = el; };
+
   const output = pipeline.result.output;
   const activeRules = pipeline.result.details.filter(d => d.firingStrength > 0);
   const sumW = activeRules.reduce((s, r) => s + r.firingStrength, 0);
   const sumWZ = activeRules.reduce((s, r) => s + r.contribution, 0);
 
+  // Scroll to section when guide step changes
+  useEffect(() => {
+    if (guideStep >= 0 && sectionRefs.current[guideStep]) {
+      sectionRefs.current[guideStep].scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [guideStep]);
+
+  // Auto-play timer
+  useEffect(() => {
+    if (isPlaying && guideStep >= 0) {
+      timerRef.current = setTimeout(() => {
+        setGuideStep(s => {
+          if (s >= GUIDE_STEPS.length - 1) {
+            setIsPlaying(false);
+            return s;
+          }
+          return s + 1;
+        });
+      }, speed);
+    }
+    return () => { if (timerRef.current) clearTimeout(timerRef.current); };
+  }, [isPlaying, guideStep, speed]);
+
+  const startGuide = useCallback(() => {
+    setGuideStep(0);
+    setIsPlaying(true);
+  }, []);
+
+  const stopGuide = useCallback(() => {
+    setGuideStep(-1);
+    setIsPlaying(false);
+  }, []);
+
+  const togglePlay = useCallback(() => {
+    if (guideStep < 0) { startGuide(); return; }
+    setIsPlaying(p => !p);
+  }, [guideStep, startGuide]);
+
+  const stepNext = useCallback(() => {
+    setGuideStep(s => Math.min(s + 1, GUIDE_STEPS.length - 1));
+    setIsPlaying(false);
+  }, []);
+
+  const stepPrev = useCallback(() => {
+    setGuideStep(s => Math.max(s - 1, 0));
+    setIsPlaying(false);
+  }, []);
+
+  // Highlight ring style for active section
+  const highlightStyle = (idx) => guideStep === idx ? {
+    boxShadow: '0 0 0 3px var(--accent), 0 0 24px rgba(37,99,235,0.12)',
+    transition: 'box-shadow 0.3s ease',
+  } : {};
+
   return (
-    <div style={{ background: 'var(--bg-page)', minHeight: '100vh' }}>
+    <div style={{ background: 'var(--bg-page)', minHeight: '100vh', paddingBottom: guideStep >= 0 ? 72 : 0 }}>
 
       {/* ═══════════════════ TOP BAR ═══════════════════ */}
-      <header className="sticky top-0 z-50 card" style={{ borderRadius: 0, borderLeft: 'none', borderRight: 'none', borderTop: 'none' }}>
-        <div className="flex items-center justify-between px-6 h-12">
-          <div className="flex items-center gap-3">
+      <header className="sticky top-0 z-50 card" style={{ borderRadius: 0, borderLeft: 'none', borderRight: 'none', borderTop: 'none', background: 'var(--bg-card)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: 50, padding: '0 48px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <span className="font-mono text-[13px] font-bold tracking-tight" style={{ color: 'var(--accent)' }}>
               SUGENO FLC
             </span>
-            <span className="text-[12px]" style={{ color: 'var(--t4)' }}>|</span>
-            <span className="text-[12px]" style={{ color: 'var(--t3)' }}>
+            <span style={{ color: 'var(--t4)', fontSize: 13 }}>|</span>
+            <span style={{ color: 'var(--t3)', fontSize: 13 }}>
               Takagi-Sugeno Fuzzy Logic Controller
             </span>
           </div>
-          <div className="flex items-center gap-4">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <div className="font-mono text-[12px] font-semibold px-3 py-1 rounded-md"
               style={{ background: 'var(--accent-light)', color: 'var(--accent)' }}>
               z* = {output.toFixed(2)}{preset.output.unit}
             </div>
-            <span className="font-mono text-[10px] px-2 py-1 rounded"
-              style={{ background: 'var(--bg-inset)', color: 'var(--t3)', border: '1px solid var(--border)' }}>
-              Zero-Order
-            </span>
+            {/* Guide toggle button */}
+            <button onClick={guideStep >= 0 ? stopGuide : startGuide}
+              className="cursor-pointer font-mono text-[11px] font-semibold px-3 py-1.5 rounded-md transition-all"
+              style={{
+                background: guideStep >= 0 ? 'var(--accent)' : 'var(--bg-inset)',
+                color: guideStep >= 0 ? '#fff' : 'var(--accent)',
+                border: `1px solid ${guideStep >= 0 ? 'var(--accent)' : 'var(--accent-border)'}`,
+              }}>
+              {guideStep >= 0 ? '■ Stop Guide' : '▶ Guided Tour'}
+            </button>
           </div>
         </div>
       </header>
@@ -54,8 +133,8 @@ export default function App() {
       {/* ═══════════════════ MAIN CONTENT ═══════════════════ */}
       <main className="max-w-[1280px] mx-auto px-6 py-6" style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
 
-        {/* ── HERO: Title + Presets ── */}
-        <section className="card" style={{ padding: 0, overflow: 'hidden' }}>
+        {/* ── Section 0: HERO + Presets ── */}
+        <section ref={setSectionRef(0)} className="card" style={{ padding: 0, overflow: 'hidden', borderRadius: 10, ...highlightStyle(0) }}>
           <div style={{ display: 'flex' }}>
             <div style={{ flex: 1, padding: '28px 32px' }}>
               <h1 className="text-[26px] font-bold leading-tight tracking-tight mb-2">
@@ -67,7 +146,6 @@ export default function App() {
                 centroid integration with instantaneous rational polynomial hyperplane projection.
               </p>
             </div>
-            {/* Preset Selection */}
             <div style={{ borderLeft: '1px solid var(--border)', padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 8 }}>
               <div className="font-mono text-[10px] tracking-wider uppercase" style={{ color: 'var(--t4)' }}>
                 Select Problem
@@ -79,12 +157,10 @@ export default function App() {
                     <button key={p.id} onClick={() => changePreset(p)}
                       className="cursor-pointer transition-all"
                       style={{
-                        padding: '10px 18px',
-                        borderRadius: 8,
+                        padding: '10px 18px', borderRadius: 8,
                         border: sel ? '2px solid var(--accent)' : '1px solid var(--border)',
                         background: sel ? 'var(--accent-light)' : 'var(--bg-inset)',
-                        textAlign: 'center',
-                        minWidth: 100,
+                        textAlign: 'center', minWidth: 100,
                       }}>
                       <div style={{ fontSize: 20, marginBottom: 4 }}>{p.icon}</div>
                       <div className="font-mono text-[10px] font-semibold"
@@ -99,8 +175,8 @@ export default function App() {
           </div>
         </section>
 
-        {/* ── 3D RESPONSE SURFACE ── */}
-        <section className="card" style={{ padding: 0, overflow: 'hidden' }}>
+        {/* ── Section 1: 3D RESPONSE SURFACE ── */}
+        <section ref={setSectionRef(1)} className="card" style={{ padding: 0, overflow: 'hidden', borderRadius: 10, ...highlightStyle(1) }}>
           <div style={{ padding: '12px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div>
               <span className="font-mono text-[10px] uppercase tracking-wider font-semibold" style={{ color: 'var(--accent)' }}>
@@ -119,24 +195,21 @@ export default function App() {
           </div>
         </section>
 
-        {/* ── INPUT VARIABLES (side by side) ── */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
+        {/* ── Section 2: INPUT VARIABLES ── */}
+        <div ref={setSectionRef(2)} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
           {preset.inputs.map((inp, idx) => (
             <InputCard
-              key={idx}
-              inp={inp}
-              idx={idx}
-              value={inputs[idx]}
-              fuzzified={pipeline.fuzzified[idx]}
-              onInput={setInput}
+              key={idx} inp={inp} idx={idx}
+              value={inputs[idx]} fuzzified={pipeline.fuzzified[idx]}
+              onInput={setInput} highlight={guideStep === 2}
             />
           ))}
         </div>
 
-        {/* ── OUTPUT + RULES (side by side) ── */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
+        {/* ── Section 3: OUTPUT + RULES ── */}
+        <div ref={setSectionRef(3)} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
           {/* Output Gauge */}
-          <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+          <div className="card" style={{ padding: 0, overflow: 'hidden', borderRadius: 10, ...(guideStep === 3 ? highlightStyle(3) : {}) }}>
             <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)' }}>
               <div className="font-mono text-[10px] uppercase tracking-wider font-semibold" style={{ color: 'var(--accent)' }}>
                 Defuzzified Output
@@ -146,12 +219,7 @@ export default function App() {
               </div>
             </div>
             <div style={{ display: 'flex', justifyContent: 'center', padding: '32px 20px' }}>
-              <Gauge
-                value={output}
-                min={preset.output.range[0]}
-                max={preset.output.range[1]}
-                unit={preset.output.unit}
-              />
+              <Gauge value={output} min={preset.output.range[0]} max={preset.output.range[1]} unit={preset.output.unit} />
             </div>
             <div style={{ padding: '14px 20px', borderTop: '1px solid var(--border)', background: 'var(--bg-inset)' }}>
               <p className="text-[11px] leading-[1.7]" style={{ color: 'var(--t3)' }}>
@@ -167,7 +235,7 @@ export default function App() {
           </div>
 
           {/* Rule Matrix */}
-          <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+          <div className="card" style={{ padding: 0, overflow: 'hidden', borderRadius: 10, ...(guideStep === 3 ? highlightStyle(3) : {}) }}>
             <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
                 <div className="font-mono text-[10px] uppercase tracking-wider font-semibold" style={{ color: 'var(--accent)' }}>
@@ -186,14 +254,13 @@ export default function App() {
               {pipeline.evaluatedRules.map((rule, ri) => {
                 const active = rule.firingStrength > 0;
                 return (
-                  <div key={ri}
-                    style={{
-                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                      padding: '8px 10px', marginBottom: 2, borderRadius: 6,
-                      background: active ? 'var(--accent-bg)' : 'transparent',
-                      fontSize: 11, fontFamily: 'var(--font-mono)',
-                      color: active ? 'var(--t1)' : 'var(--t4)',
-                    }}>
+                  <div key={ri} style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    padding: '8px 10px', marginBottom: 2, borderRadius: 6,
+                    background: active ? 'var(--accent-bg)' : 'transparent',
+                    fontSize: 11, fontFamily: 'var(--font-mono)',
+                    color: active ? 'var(--t1)' : 'var(--t4)',
+                  }}>
                     <span>
                       <span style={{ fontWeight: 600, color: active ? 'var(--accent)' : 'var(--t4)' }}>R{ri + 1}</span>
                       {': IF '}
@@ -219,15 +286,14 @@ export default function App() {
           </div>
         </div>
 
-        {/* ── ANALYTICAL REDUCTION ── */}
-        <section className="card" style={{ padding: 0, overflow: 'hidden' }}>
+        {/* ── Section 4: ANALYTICAL REDUCTION ── */}
+        <section ref={setSectionRef(4)} className="card" style={{ padding: 0, overflow: 'hidden', borderRadius: 10, ...highlightStyle(4) }}>
           <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)' }}>
             <span className="font-mono text-[10px] uppercase tracking-wider font-semibold" style={{ color: 'var(--accent)' }}>
               Computation Breakdown
             </span>
           </div>
           <div style={{ display: 'flex' }}>
-            {/* Left: formulas */}
             <div style={{ flex: 1, padding: 24 }}>
               <div className="font-mono text-[13px] font-semibold mb-4" style={{ color: 'var(--t1)' }}>
                 z* = Σ(w<sub>i</sub> × z<sub>i</sub>) / Σ(w<sub>i</sub>)
@@ -254,8 +320,6 @@ export default function App() {
                 </div>
               </div>
             </div>
-
-            {/* Right: summary stats */}
             <div style={{ width: 220, padding: 24, borderLeft: '1px solid var(--border)', background: 'var(--bg-inset)' }}>
               <div className="font-mono text-[10px] uppercase tracking-wider mb-4" style={{ color: 'var(--t4)' }}>
                 Summary
@@ -279,7 +343,6 @@ export default function App() {
             </div>
           </div>
 
-          {/* Hand calculation toggle */}
           <button onClick={() => setShowCalc(!showCalc)}
             className="cursor-pointer transition-colors"
             style={{
@@ -303,8 +366,8 @@ export default function App() {
           )}
         </section>
 
-        {/* ── THEORY CARDS ── */}
-        <section>
+        {/* ── Section 5: THEORY CARDS ── */}
+        <section ref={setSectionRef(5)} style={{ ...highlightStyle(5), borderRadius: 10 }}>
           <div style={{ marginBottom: 16, padding: '0 4px' }}>
             <h2 className="text-[20px] font-bold tracking-tight" style={{ color: 'var(--t1)' }}>
               Key Concepts
@@ -342,16 +405,122 @@ export default function App() {
           </p>
         </footer>
       </main>
+
+      {/* ═══════════════════ FLOATING WALKTHROUGH BAR ═══════════════════ */}
+      <AnimatePresence>
+        {guideStep >= 0 && (
+          <motion.div
+            initial={{ y: 80, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 80, opacity: 0 }}
+            transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+            className="fixed bottom-4 left-1/2 z-50"
+            style={{ transform: 'translateX(-50%)', width: 'fit-content' }}>
+            <div className="card" style={{
+              display: 'flex', alignItems: 'center', gap: 16, padding: '10px 20px',
+              borderRadius: 14, boxShadow: '0 8px 32px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.06)',
+              background: 'var(--bg-card)',
+            }}>
+              {/* Transport controls */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <ControlBtn onClick={stepPrev} disabled={guideStep <= 0} title="Previous">
+                  <path d="M15 18l-6-6 6-6" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+                </ControlBtn>
+                <button onClick={togglePlay}
+                  className="cursor-pointer transition-all"
+                  style={{
+                    width: 36, height: 36, borderRadius: '50%',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    background: 'var(--accent)', color: '#fff', border: 'none',
+                    boxShadow: '0 2px 8px rgba(37,99,235,0.3)',
+                  }}>
+                  {isPlaying
+                    ? <svg width="14" height="14" viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16" rx="1" fill="currentColor"/><rect x="14" y="4" width="4" height="16" rx="1" fill="currentColor"/></svg>
+                    : <svg width="14" height="14" viewBox="0 0 24 24"><path d="M8 5v14l11-7L8 5z" fill="currentColor"/></svg>
+                  }
+                </button>
+                <ControlBtn onClick={stepNext} disabled={guideStep >= GUIDE_STEPS.length - 1} title="Next">
+                  <path d="M9 18l6-6-6-6" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+                </ControlBtn>
+              </div>
+
+              {/* Divider */}
+              <div style={{ width: 1, height: 28, background: 'var(--border)' }} />
+
+              {/* Step dots */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                {GUIDE_STEPS.map((s, i) => (
+                  <button key={i} onClick={() => { setGuideStep(i); setIsPlaying(false); }}
+                    className="cursor-pointer transition-all"
+                    title={s.label}
+                    style={{
+                      width: i === guideStep ? 'auto' : 8,
+                      height: 8,
+                      borderRadius: 4,
+                      padding: i === guideStep ? '0 10px' : 0,
+                      border: 'none',
+                      background: i === guideStep ? 'var(--accent)' : i < guideStep ? 'var(--accent)' : 'var(--border)',
+                      opacity: i <= guideStep ? 1 : 0.5,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: 9, fontFamily: 'var(--font-mono)', fontWeight: 600,
+                      color: '#fff', letterSpacing: '0.05em',
+                    }}>
+                    {i === guideStep ? s.label : ''}
+                  </button>
+                ))}
+              </div>
+
+              {/* Divider */}
+              <div style={{ width: 1, height: 28, background: 'var(--border)' }} />
+
+              {/* Description */}
+              <div style={{ maxWidth: 320, fontSize: 11, color: 'var(--t2)', lineHeight: 1.5 }}>
+                {GUIDE_STEPS[guideStep]?.desc}
+              </div>
+
+              {/* Speed toggle */}
+              <button onClick={() => setSpeed(s => s === 3000 ? 1500 : s === 1500 ? 5000 : 3000)}
+                className="cursor-pointer font-mono text-[9px] px-2 py-1 rounded"
+                style={{ background: 'var(--bg-inset)', color: 'var(--t4)', border: '1px solid var(--border)', whiteSpace: 'nowrap' }}>
+                {(speed / 1000).toFixed(1)}s
+              </button>
+
+              {/* Close */}
+              <ControlBtn onClick={stopGuide} title="Close guide">
+                <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round"/>
+              </ControlBtn>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
+  );
+}
+
+/* ═══════════════════ CONTROL BUTTON ═══════════════════ */
+
+function ControlBtn({ onClick, disabled, title, children }) {
+  return (
+    <button onClick={onClick} disabled={disabled} title={title}
+      className="cursor-pointer transition-colors"
+      style={{
+        width: 32, height: 32, borderRadius: 8,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        background: 'transparent', border: 'none',
+        color: disabled ? 'var(--t4)' : 'var(--t2)',
+        opacity: disabled ? 0.4 : 1,
+      }}>
+      <svg width="18" height="18" viewBox="0 0 24 24">{children}</svg>
+    </button>
   );
 }
 
 /* ═══════════════════ INPUT CARD ═══════════════════ */
 
-function InputCard({ inp, idx, value, fuzzified, onInput }) {
+function InputCard({ inp, idx, value, fuzzified, onInput, highlight }) {
   return (
-    <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-      {/* Header */}
+    <div className="card" style={{
+      padding: 0, overflow: 'hidden', borderRadius: 10,
+      ...(highlight ? { boxShadow: '0 0 0 3px var(--accent), 0 0 24px rgba(37,99,235,0.12)', transition: 'box-shadow 0.3s ease' } : {}),
+    }}>
       <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div>
           <div className="font-mono text-[10px] uppercase tracking-wider font-semibold" style={{ color: 'var(--accent)' }}>
@@ -360,11 +529,7 @@ function InputCard({ inp, idx, value, fuzzified, onInput }) {
           <div className="text-[15px] font-bold mt-1">{inp.name}</div>
         </div>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-          <input
-            type="number"
-            min={inp.range[0]}
-            max={inp.range[1]}
-            step={0.1}
+          <input type="number" min={inp.range[0]} max={inp.range[1]} step={0.1}
             value={value}
             onChange={e => {
               const v = parseFloat(e.target.value);
@@ -377,22 +542,13 @@ function InputCard({ inp, idx, value, fuzzified, onInput }) {
           </span>
         </div>
       </div>
-
-      {/* Chart */}
       <div style={{ padding: '8px 12px', background: 'var(--bg-inset)' }}>
-        <MembershipChart
-          variable={inp} inputValue={value}
-          fuzzified={fuzzified}
-          showIndicator chartId={`panel-${idx}`} compact
-        />
+        <MembershipChart variable={inp} inputValue={value} fuzzified={fuzzified}
+          showIndicator chartId={`panel-${idx}`} compact />
       </div>
-
-      {/* Slider */}
       <div style={{ padding: '12px 20px', borderTop: '1px solid var(--border)' }}>
         <input type="range" min={inp.range[0]} max={inp.range[1]} step={0.01}
-          value={value}
-          onChange={e => onInput(idx, parseFloat(e.target.value))}
-          className="w-full" />
+          value={value} onChange={e => onInput(idx, parseFloat(e.target.value))} className="w-full" />
         <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
           <span className="font-mono text-[9px]" style={{ color: 'var(--t4)' }}>{inp.range[0]}</span>
           <div style={{ display: 'flex', gap: 6 }}>
@@ -411,8 +567,6 @@ function InputCard({ inp, idx, value, fuzzified, onInput }) {
           <span className="font-mono text-[9px]" style={{ color: 'var(--t4)' }}>{inp.range[1]}</span>
         </div>
       </div>
-
-      {/* Degree badges */}
       <div style={{ display: 'flex', gap: 6, padding: '10px 20px 16px', borderTop: '1px solid var(--border)' }}>
         {fuzzified.map((f, fi) => {
           const on = f.degree > 0;
@@ -464,9 +618,7 @@ function Gauge({ value, min, max, unit }) {
         {value.toFixed(2)}
       </text>
       <text x={cx} y={cy + 20} textAnchor="middle" fill="var(--t4)"
-        fontSize={11} fontFamily="var(--font-mono)">
-        {unit}
-      </text>
+        fontSize={11} fontFamily="var(--font-mono)">{unit}</text>
       <text x={20} y={122} textAnchor="middle" fill="var(--t4)"
         fontSize={9} fontFamily="var(--font-mono)">{min}</text>
       <text x={130} y={122} textAnchor="middle" fill="var(--t4)"
