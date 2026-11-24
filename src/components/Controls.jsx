@@ -1,39 +1,52 @@
-export default function Controls({ currentStep, isPlaying, speed, onPlay, onPause, onStepForward, onStepBack, onReset, onGoToStep, onSpeedChange, stepInfo }) {
+export default function Controls({
+  currentStep, isPlaying, speed,
+  onPlay, onPause, onStepForward, onStepBack, onReset, onGoToStep, onSpeedChange,
+  stepInfo,
+}) {
   return (
-    <div className="flex items-center gap-3 px-5 h-full">
+    <div className="flex items-center gap-4 px-6 h-full">
       {/* Transport */}
       <div className="flex items-center gap-1">
-        <TBtn onClick={onReset}><rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor"/></TBtn>
-        <TBtn onClick={onStepBack} off={currentStep === 0}><path d="M6 4v16h2V4H6zm12 0l-10 8 10 8V4z" fill="currentColor"/></TBtn>
+        <TBtn onClick={onReset}>
+          <rect x="7" y="7" width="10" height="10" fill="currentColor" />
+        </TBtn>
+        <TBtn onClick={onStepBack} off={currentStep === 0}>
+          <path d="M6 4v16h2V4H6zm12 0l-10 8 10 8V4z" fill="currentColor" />
+        </TBtn>
         <button onClick={isPlaying ? onPause : onPlay}
-          className="w-9 h-9 rounded-xl flex items-center justify-center transition-all duration-200"
+          className="w-8 h-8 flex items-center justify-center transition-all"
           style={{
-            background: isPlaying ? 'rgba(239,68,68,.08)' : 'var(--g-bg)',
-            border: `1px solid ${isPlaying ? 'rgba(239,68,68,.18)' : 'var(--g-border)'}`,
-            color: isPlaying ? '#ef4444' : 'var(--g400)',
+            background: isPlaying ? 'rgba(239,68,68,.06)' : 'var(--accent-bg)',
+            border: `1px solid ${isPlaying ? 'rgba(239,68,68,.15)' : 'var(--accent-border)'}`,
+            color: isPlaying ? '#ef4444' : 'var(--accent)',
           }}>
           {isPlaying
-            ? <svg width="13" height="13" viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16" rx="1" fill="currentColor"/><rect x="14" y="4" width="4" height="16" rx="1" fill="currentColor"/></svg>
-            : <svg width="13" height="13" viewBox="0 0 24 24"><path d="M7 4l14 8-14 8V4z" fill="currentColor"/></svg>}
+            ? <svg width="11" height="11" viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16" fill="currentColor" /><rect x="14" y="4" width="4" height="16" fill="currentColor" /></svg>
+            : <svg width="11" height="11" viewBox="0 0 24 24"><path d="M7 4l14 8-14 8V4z" fill="currentColor" /></svg>
+          }
         </button>
-        <TBtn onClick={onStepForward} off={currentStep === stepInfo.length - 1}><path d="M6 4l10 8-10 8V4zm12 0v16h-2V4h2z" fill="currentColor"/></TBtn>
+        <TBtn onClick={onStepForward} off={currentStep === stepInfo.length - 1}>
+          <path d="M6 4l10 8-10 8V4zm12 0v16h-2V4h2z" fill="currentColor" />
+        </TBtn>
       </div>
 
-      <div className="w-px h-5" style={{ background: 'var(--border)' }}/>
+      <div className="w-px h-5" style={{ background: 'var(--border)' }} />
 
-      {/* Steps */}
+      {/* Step indicators */}
       <div className="flex items-center gap-0.5 flex-1">
         {stepInfo.map((s, i) => {
-          const a = i === currentStep, d = i < currentStep;
+          const a = i === currentStep;
+          const d = i < currentStep;
           return (
             <button key={i} onClick={() => onGoToStep(i)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-semibold transition-all duration-200"
+              className="flex items-center gap-1.5 px-3 py-1.5 font-mono text-[9px] tracking-[0.08em] uppercase transition-all"
               style={{
-                background: a ? 'var(--g-bg)' : 'transparent',
-                border: a ? '1px solid var(--g-border)' : '1px solid transparent',
-                color: a ? 'var(--g400)' : d ? 'var(--t2)' : 'var(--t4)',
+                background: a ? 'var(--accent-bg)' : 'transparent',
+                border: a ? '1px solid var(--accent-border)' : '1px solid transparent',
+                color: a ? 'var(--accent)' : d ? 'var(--t2)' : 'var(--t4)',
               }}>
-              <span className="w-1.5 h-1.5 rounded-full" style={{ background: a ? 'var(--g400)' : d ? 'var(--g700)' : 'var(--border-2)', boxShadow: a ? '0 0 6px var(--g-glow)' : 'none' }}/>
+              <span className="w-1.5 h-1.5"
+                style={{ background: a ? 'var(--accent)' : d ? 'var(--accent-dim)' : 'var(--border-2)' }} />
               {s.label}
             </button>
           );
@@ -42,10 +55,12 @@ export default function Controls({ currentStep, isPlaying, speed, onPlay, onPaus
 
       {/* Speed */}
       <div className="flex items-center gap-2">
-        <span className="text-[9px] uppercase tracking-widest" style={{ color: 'var(--t4)' }}>Speed</span>
+        <span className="font-mono text-[8px] tracking-[0.14em] uppercase" style={{ color: 'var(--t4)' }}>Speed</span>
         <input type="range" min={500} max={4000} step={250} value={4500 - speed}
-          onChange={e => onSpeedChange(4500 - parseInt(e.target.value))} className="w-16"/>
-        <span className="text-[10px] font-mono" style={{ color: 'var(--t3)' }}>{(speed / 1000).toFixed(1)}s</span>
+          onChange={e => onSpeedChange(4500 - parseInt(e.target.value))} className="w-16" />
+        <span className="font-mono text-[9px]" style={{ color: 'var(--t3)' }}>
+          {(speed / 1000).toFixed(1)}s
+        </span>
       </div>
     </div>
   );
@@ -54,9 +69,9 @@ export default function Controls({ currentStep, isPlaying, speed, onPlay, onPaus
 function TBtn({ onClick, off, children }) {
   return (
     <button onClick={onClick} disabled={off}
-      className="w-7 h-7 rounded-lg flex items-center justify-center transition-colors disabled:opacity-15"
+      className="w-7 h-7 flex items-center justify-center transition-colors disabled:opacity-15"
       style={{ color: 'var(--t3)' }}>
-      <svg width="12" height="12" viewBox="0 0 24 24">{children}</svg>
+      <svg width="11" height="11" viewBox="0 0 24 24">{children}</svg>
     </button>
   );
 }
